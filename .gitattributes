@@ -1,0 +1,21 @@
+# Line endings: git normalizes text files
+* text=auto
+
+# Unity files always use LF, the way Unity writes them
+*.unity  text eol=lf
+*.prefab text eol=lf
+*.asset  text eol=lf
+*.meta   text eol=lf
+*.mat    text eol=lf
+*.anim   text eol=lf
+*.controller text eol=lf
+*.cs     text diff=csharp
+
+# Binary files: never touch line endings, never merge line by line
+*.fbx   binary
+*.blend binary
+*.png   binary
+*.jpg   binary
+*.psd   binary
+*.wav   binary
+*.mp3   binary
