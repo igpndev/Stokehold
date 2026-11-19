@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Камера меню: при старте плавно перелетает к центру меню на столе,
-// затем слегка поворачивается вслед за мышью.
+// Меню-поведение камеры: при старте перелетает к центру меню на столе,
+// затем слегка поворачивается вслед за мышью. Саму механику перелёта
+// выполняет CameraFlight (тот же компонент используется для перехода к столу).
 public class MenuCamera : MonoBehaviour
 {
     [Header("Куда смотреть")]
@@ -18,7 +19,7 @@ public class MenuCamera : MonoBehaviour
     [SerializeField] private float swaySpeed = 3f;
 
     // Срабатывает автоматически после загрузки сцены: если в ней есть меню на столе,
-    // а на камере нет MenuCamera — добавляем его сами, руками ничего вешать не нужно.
+    // а на камере нет наших компонентов — добавляем сами, руками ничего вешать не нужно.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void AttachToMainCamera()
     {
@@ -26,19 +27,17 @@ public class MenuCamera : MonoBehaviour
         if (main == null || main.GetComponent<MenuCamera>() != null) return;
         if (GameObject.Find("TableCanvas") == null) return;
 
+        main.gameObject.AddComponent<CameraFlight>();
         main.gameObject.AddComponent<MenuCamera>();
     }
 
     private Camera cam;
-    private Vector3 startPosition, targetPosition;
-    private Quaternion startRotation, targetRotation;
-    private float flyTime;
+    private CameraFlight flight;
 
     private void Start()
     {
         cam = GetComponent<Camera>();
-        startPosition = transform.position;
-        startRotation = transform.rotation;
+        flight = GetComponent<CameraFlight>();
 
         // Если ссылку забыли назначить — ищем канвас меню по имени
         if (menuCanvas == null)
@@ -50,32 +49,33 @@ public class MenuCamera : MonoBehaviour
         if (menuCanvas == null)
         {
             Debug.LogWarning("MenuCamera: не назначен Menu Canvas — камера останется на месте.");
-            targetPosition = startPosition;
-            targetRotation = startRotation;
-            flyTime = flyDuration;
             return;
         }
 
-        CalculateTarget();
+        if (flight == null) flight = gameObject.AddComponent<CameraFlight>();
+
+        Vector3 targetPosition;
+        Quaternion targetRotation;
+        CalculateTarget(out targetPosition, out targetRotation);
+        flight.FlyTo(targetPosition, targetRotation, flyDuration);
     }
 
     private void Update()
     {
-        if (flyTime < flyDuration)
-        {
-            flyTime += Time.unscaledDeltaTime;
-            float t = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(flyTime / flyDuration));
-            transform.position = Vector3.Lerp(startPosition, targetPosition, t);
-            transform.rotation = Quaternion.Slerp(startRotation, targetRotation, t);
-            return;
-        }
+        // Во время перелёта не мешаем — покачивание только на месте
+        if (flight != null && flight.IsFlying) return;
 
-        Sway();
+        Sway(flight != null ? flight.TargetRotation : transform.rotation);
     }
 
     // Ставим камеру напротив центра меню и отодвигаем, пока все 4 угла канваса не влезут в кадр
-    private void CalculateTarget()
+    private void CalculateTarget(out Vector3 targetPosition, out Quaternion targetRotation)
     {
+        // Запоминаем исходную позу — после подбора дистанции вернём камеру на место,
+        // чтобы перелёт начался с неё (FlyTo фиксирует стартовую позицию сам).
+        Vector3 originalPosition = transform.position;
+        Quaternion originalRotation = transform.rotation;
+
         Vector3 forward = Vector3.ProjectOnPlane(menuCanvas.up, Vector3.up).normalized; // "верх" текста = от камеры
         Vector3 viewDir = Quaternion.AngleAxis(pitch, Vector3.Cross(Vector3.up, forward)) * forward;
         targetRotation = Quaternion.LookRotation(viewDir, Vector3.up);
@@ -94,9 +94,7 @@ public class MenuCamera : MonoBehaviour
         }
         targetPosition = transform.position;
 
-        // Возвращаем камеру на старт — дальше летим анимацией
-        transform.SetPositionAndRotation(startPosition, startRotation);
-        flyTime = 0f;
+        transform.SetPositionAndRotation(originalPosition, originalRotation);
     }
 
     private bool AllInView(Vector3[] points)
@@ -110,7 +108,7 @@ public class MenuCamera : MonoBehaviour
         return true;
     }
 
-    private void Sway()
+    private void Sway(Quaternion baseRotation)
     {
         if (Mouse.current == null) return;
 
@@ -118,7 +116,7 @@ public class MenuCamera : MonoBehaviour
         float x = Mathf.Clamp(mouse.x / Screen.width - 0.5f, -0.5f, 0.5f) * 2f;
         float y = Mathf.Clamp(mouse.y / Screen.height - 0.5f, -0.5f, 0.5f) * 2f;
 
-        Quaternion target = targetRotation * Quaternion.Euler(-y * swayAngle, x * swayAngle, 0f);
+        Quaternion target = baseRotation * Quaternion.Euler(-y * swayAngle, x * swayAngle, 0f);
         float t = 1f - Mathf.Exp(-swaySpeed * Time.unscaledDeltaTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, target, t);
     }

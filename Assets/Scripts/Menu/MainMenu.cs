@@ -5,10 +5,14 @@ using UnityEngine.UI;
 
 // Логика главного меню: кнопки "Играть", "Настройки", "Выход" и панель настроек.
 // Сами кнопки лежат на столе (World Space Canvas) в сцене MainScene.
+// Хранение настроек — SettingsService, переход к столу — TableTransition.
 public class MainMenu : MonoBehaviour
 {
     [Header("Сцена игры (должна быть в File > Build Profiles)")]
     [SerializeField] private string gameSceneName = "GameScene";
+
+    [Header("Переход к столу (пока сцены игры нет)")]
+    [SerializeField] private float tableFlyDuration = 1.6f;
 
     [Header("Панели")]
     [SerializeField] private GameObject mainPanel;
@@ -18,26 +22,21 @@ public class MainMenu : MonoBehaviour
     [SerializeField] private Slider volumeSlider;
     [SerializeField] private Toggle fullscreenToggle;
 
-    private const string VolumeKey = "settings.volume";
-    private const string FullscreenKey = "settings.fullscreen";
-
     private void Start()
     {
-        float volume = PlayerPrefs.GetFloat(VolumeKey, 1f);
-        bool fullscreen = PlayerPrefs.GetInt(FullscreenKey, Screen.fullScreen ? 1 : 0) == 1;
-
-        AudioListener.volume = volume;
-        Screen.fullScreen = fullscreen;
+        // Загрузка настроек применяет их к системе и возвращает значения для UI
+        float volume = SettingsService.LoadVolume();
+        bool fullscreen = SettingsService.LoadFullscreen();
 
         if (volumeSlider != null)
         {
             volumeSlider.SetValueWithoutNotify(volume);
-            volumeSlider.onValueChanged.AddListener(OnVolumeChanged);
+            volumeSlider.onValueChanged.AddListener(SettingsService.SaveVolume);
         }
         if (fullscreenToggle != null)
         {
             fullscreenToggle.SetIsOnWithoutNotify(fullscreen);
-            fullscreenToggle.onValueChanged.AddListener(OnFullscreenChanged);
+            fullscreenToggle.onValueChanged.AddListener(SettingsService.SaveFullscreen);
         }
 
         CloseSettings();
@@ -55,11 +54,16 @@ public class MainMenu : MonoBehaviour
 
     public void Play()
     {
+        // Когда сцена игры появится — играем её как раньше.
         if (Application.CanStreamedLevelBeLoaded(gameSceneName))
+        {
             SceneManager.LoadScene(gameSceneName);
-        else
-            Debug.LogWarning($"Сцена \"{gameSceneName}\" не найдена в Build Profiles. " +
-                             "Создайте её и добавьте в список сцен (или поменяйте имя в компоненте MainMenu).");
+            return;
+        }
+
+        // Пока сцены игры нет: переход внутри этой сцены —
+        // прячем меню, камера летит к началу стола, там появляются карты.
+        TableTransition.Run(mainPanel, settingsPanel, tableFlyDuration);
     }
 
     public void OpenSettings()
@@ -70,7 +74,7 @@ public class MainMenu : MonoBehaviour
 
     public void CloseSettings()
     {
-        PlayerPrefs.Save();
+        SettingsService.Save();
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (mainPanel != null) mainPanel.SetActive(true);
     }
@@ -82,17 +86,5 @@ public class MainMenu : MonoBehaviour
 #else
         Application.Quit();
 #endif
-    }
-
-    private void OnVolumeChanged(float value)
-    {
-        AudioListener.volume = value;
-        PlayerPrefs.SetFloat(VolumeKey, value);
-    }
-
-    private void OnFullscreenChanged(bool value)
-    {
-        Screen.fullScreen = value;
-        PlayerPrefs.SetInt(FullscreenKey, value ? 1 : 0);
     }
 }
