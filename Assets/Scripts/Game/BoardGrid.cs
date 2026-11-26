@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Разметка столешницы на клетки для зданий.
-// Чистая геометрия и учёт занятости: сетка покрывает ВСЮ столешницу,
-// клетки почти квадратные (число строк подбирается по ширине).
+// Разметка доски на клетки для зданий.
+// Чистая геометрия и учёт занятости: сетка покрывает доску — прямоугольник
+// на столешнице за рукой карт (где он лежит, считает TableSurface.GetBoardBounds).
 public class BoardGrid
 {
-    private readonly Vector3 origin; // ближний угол сетки = угол столешницы (высота = её поверхность)
+    private readonly Vector3 origin; // ближний угол сетки = ближний угол доски (высота = поверхность стола)
     private readonly float cellSizeX;
     private readonly float cellSizeZ;
     private readonly int columns;
@@ -21,15 +21,21 @@ public class BoardGrid
     /// <summary>Ближний угол сетки; Y = поверхность стола.</summary>
     public Vector3 Origin { get { return origin; } }
 
-    public BoardGrid(Bounds feltBounds, int columns)
+    /// <summary>Центр сетки на поверхности стола.</summary>
+    public Vector3 Center { get { return origin + new Vector3(columns * cellSizeX * 0.5f, 0f, rows * cellSizeZ * 0.5f); } }
+
+    /// <summary>Размер сетки: X — ширина, Z — глубина.</summary>
+    public Vector3 Size { get { return new Vector3(columns * cellSizeX, 0f, rows * cellSizeZ); } }
+
+    // boardBounds — прямоугольник доски (Y = поверхность стола), columns x rows — число клеток.
+    public BoardGrid(Bounds boardBounds, int columns, int rows)
     {
         this.columns = Mathf.Max(1, columns);
-        float cellByWidth = feltBounds.size.x / this.columns;
-        rows = Mathf.Max(1, Mathf.RoundToInt(feltBounds.size.z / cellByWidth)); // клетки ближе к квадрату
+        this.rows = Mathf.Max(1, rows);
 
-        cellSizeX = feltBounds.size.x / this.columns;
-        cellSizeZ = feltBounds.size.z / rows;
-        origin = new Vector3(feltBounds.min.x, feltBounds.max.y, feltBounds.min.z); // вся столешница
+        cellSizeX = boardBounds.size.x / this.columns;
+        cellSizeZ = boardBounds.size.z / this.rows;
+        origin = new Vector3(boardBounds.min.x, boardBounds.max.y, boardBounds.min.z);
     }
 
     // Клетка под мировой точкой (по XZ). false — точка вне сетки.

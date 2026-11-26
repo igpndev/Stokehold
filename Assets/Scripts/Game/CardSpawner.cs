@@ -21,8 +21,10 @@ public class CardSpawner : MonoBehaviour
     [SerializeField] private float appearDuration = 0.3f;  // появление одной карты, сек
     [SerializeField] private float stagger = 0.08f;        // задержка между появлениями, сек
 
-    [Header("Сетка стола")]
-    [SerializeField] private int gridColumns = 8;          // клеток по ширине столешницы
+    [Header("Доска")]
+    [SerializeField] private float boardWidthFraction = 0.6f;  // ширина доски = ширина столешницы * этот множитель
+    [SerializeField] private int gridColumns = 6;              // клеток по ширине доски
+    [SerializeField] private int gridRows = 6;                 // клеток по глубине доски
 
     private TableSurface surface;
     private BoardGrid grid;
@@ -72,8 +74,19 @@ public class CardSpawner : MonoBehaviour
         float spacing = cardWidth * 1.15f;
         float z = Mathf.Max(surface.TopBounds.min.z + cardHeight * 0.65f, CardsCenter.z);
 
-        // Сетка стола + разметка + общая сессия перетаскивания
-        grid = new BoardGrid(surface.TopBounds, gridColumns);
+        // Доска за рукой (где она лежит, считает TableSurface). Клетки квадратные,
+        // размер — по более жёсткому из двух ограничений: ширина столешницы или
+        // глубина, оставшаяся за рукой.
+        int columns = Mathf.Max(1, gridColumns);
+        int rows = Mathf.Max(1, gridRows);
+        float handBack = z + cardHeight * 0.5f; // дальний край руки
+        float cellByWidth = surface.TopBounds.size.x * boardWidthFraction / columns;
+        float cellByDepth = surface.GetBoardAvailableDepth(handBack) / rows;
+        float cellSize = Mathf.Min(cellByWidth, cellByDepth);
+        Bounds boardBounds = surface.GetBoardBounds(cellSize * columns, cellSize * rows);
+
+        // Сетка доски + разметка + общая сессия перетаскивания
+        grid = new BoardGrid(boardBounds, columns, rows);
         var gridView = new GameObject("BoardGridVisual").AddComponent<BoardGridView>();
         gridView.transform.SetParent(transform, false);
         gridView.Build(grid);

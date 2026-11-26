@@ -7,6 +7,9 @@ public class TableSurface
     private Bounds topBounds;
     private bool ready;
 
+    private const float BoardEdgeMargin = 0.06f; // отступ доски от дальнего края столешницы, м
+    private const float BoardHandGap = 0.05f;    // зазор между доской и дальним краем руки, м
+
     /// <summary>Границы столешницы (по ним считаются размер и раскладка карт).</summary>
     public Bounds TopBounds { get { return topBounds; } }
 
@@ -80,6 +83,25 @@ public class TableSurface
         for (int i = 1; i < renderers.Length; i++)
             all.Encapsulate(renderers[i].bounds);
         return all;
+    }
+
+    // Сколько глубины за рукой остаётся под доску: от дальнего края руки
+    // до отступа от дальнего края столешницы.
+    public float GetBoardAvailableDepth(float handBackZ)
+    {
+        return topBounds.max.z - BoardEdgeMargin - handBackZ - BoardHandGap;
+    }
+
+    // Доска — область столешницы за рукой карт, куда ставят постройки.
+    // По ширине — по центру стола, по глубине прижата к дальнему краю (с отступом).
+    public Bounds GetBoardBounds(float width, float depth)
+    {
+        Vector3 center = new Vector3(
+            topBounds.center.x,
+            topBounds.max.y,
+            topBounds.max.z - BoardEdgeMargin - depth * 0.5f);
+
+        return new Bounds(center, new Vector3(width, 0f, depth)); // плоская область на поверхности стола
     }
 
     // Куда встать камере: карты — внизу кадра, взгляд уходит глубже в стол.
